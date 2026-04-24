@@ -2,12 +2,14 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
+import { toPng } from "html-to-image";
 
 type LayoutType = "3-vertical" | "4-vertical" | "2x2-grid";
 
 export default function StudioPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
 
   const [streamActive, setStreamActive] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -103,82 +105,19 @@ export default function StudioPage() {
     await takeShots(shotsNeeded);
   };
 
-  const handleDownload = () => {
-    if (photos.length === 0) return;
+  const handleDownload = async () => {
+    if (photos.length === 0 || !stripRef.current) return;
 
-    // Create offscreen canvas to compose strip
-    const offCanvas = document.createElement("canvas");
-    const ctx = offCanvas.getContext("2d");
-    if (!ctx) return;
-
-    const imgPadding = 20;
-    const outerPadding = 40;
-    const bottomSpace = 120; // space for branding
-
-    // Load images asynchronously
-    Promise.all(
-      photos.map(
-        (data) =>
-          new Promise<HTMLImageElement>((resolve) => {
-            const img = new Image();
-            img.src = data;
-            img.onload = () => resolve(img);
-          })
-      )
-    ).then((imgs) => {
-      if (imgs.length === 0) return;
-      
-      const aspect = imgs[0].width / imgs[0].height;
-      const imgWidth = 600;
-      const imgHeight = imgWidth / aspect;
-
-      if (layout === "2x2-grid") {
-        offCanvas.width = outerPadding * 2 + imgWidth * 2 + imgPadding;
-        offCanvas.height = outerPadding * 2 + imgHeight * 2 + imgPadding + bottomSpace;
-        
-        // draw bg
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, offCanvas.width, offCanvas.height);
-        
-        imgs.forEach((img, idx) => {
-          const col = idx % 2;
-          const row = Math.floor(idx / 2);
-          const x = outerPadding + col * (imgWidth + imgPadding);
-          const y = outerPadding + row * (imgHeight + imgPadding);
-          ctx.drawImage(img, x, y, imgWidth, imgHeight);
-        });
-
-      } else {
-        // Vertical layout
-        const count = layout === "3-vertical" ? 3 : 4;
-        offCanvas.width = outerPadding * 2 + imgWidth;
-        offCanvas.height = outerPadding * 2 + (imgHeight * count) + (imgPadding * (count - 1)) + bottomSpace;
-
-        // draw bg
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, offCanvas.width, offCanvas.height);
-
-        imgs.forEach((img, idx) => {
-          if (idx >= count) return;
-          const x = outerPadding;
-          const y = outerPadding + idx * (imgHeight + imgPadding);
-          ctx.drawImage(img, x, y, imgWidth, imgHeight);
-        });
-      }
-
-      // Add branding text
-      ctx.fillStyle = bgColor === "#000000" ? "#ffffff" : "#171717";
-      ctx.font = "italic 40px 'Playfair Display', serif";
-      ctx.textAlign = "center";
-      ctx.fillText("Atelier Booth", offCanvas.width / 2, offCanvas.height - 40);
-
-      // Trigger download
-      const dataUri = offCanvas.toDataURL("image/jpeg", 0.9);
+    try {
+      // Export the exact DOM element including the floating pill
+      const dataUrl = await toPng(stripRef.current, { pixelRatio: 2, cacheBust: true });
       const link = document.createElement("a");
-      link.href = dataUri;
-      link.download = `atelier-strip-${Date.now()}.jpg`;
+      link.href = dataUrl;
+      link.download = `atelier-strip-${Date.now()}.png`;
       link.click();
-    });
+    } catch (err) {
+      console.error("Failed to download image", err);
+    }
   };
 
   return (
@@ -198,16 +137,15 @@ export default function StudioPage() {
             borderRadius: "var(--border-radius-md)", 
             overflow: "hidden" 
           }}>
-            {streamActive ? (
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                muted 
-                style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} 
-              />
-            ) : (
-              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              muted 
+              style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", display: streamActive ? 'block' : 'none' }} 
+            />
+            {!streamActive && (
+              <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#E5E5E5" }}>
                 Waiting for Camera...
               </div>
             )}
@@ -292,36 +230,113 @@ export default function StudioPage() {
         {/* Right pane: Strip Preview */}
         <div className="studio-pane" style={{ width: "450px", backgroundColor: "#F3F4F6", padding: "2rem", display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", flexShrink: 0 }}>
           
-          <div style={{
-            backgroundColor: bgColor,
-            padding: "20px 20px 80px 20px",
-            boxShadow: "var(--shadow-lg)",
-            transition: "background-color 0.3s",
-            width: "100%",
+          <div 
+            ref={stripRef}
+            style={{
+            position: 'relative',
+            width: '100%',
             maxWidth: layout === "2x2-grid" ? "380px" : "300px",
-            display: "flex",
-            flexDirection: layout === "2x2-grid" ? "row" : "column",
-            flexWrap: layout === "2x2-grid" ? "wrap" : "nowrap",
-            gap: "10px",
-            position: "relative"
+            paddingTop: '50px',
+            paddingBottom: '20px',
+            paddingLeft: '10px',
+            paddingRight: '10px',
+            display: 'flex',
+            flexDirection: 'column'
           }}>
-            {[...Array(expectedPhotos)].map((_, i) => (
-              <div key={i} style={{ 
-                backgroundColor: "rgba(0,0,0,0.05)", 
-                aspectRatio: "4/3",
-                width: layout === "2x2-grid" ? "calc(50% - 5px)" : "100%",
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                backgroundImage: photos[i] ? "url(" + photos[i] + ")" : "none"
-              }} />
-            ))}
-            
+            {/* Top Floating Reaction Pill */}
             <div style={{
-              position: "absolute", bottom: "25px", left: 0, right: 0,
-              textAlign: "center", fontFamily: "Playfair Display", fontStyle: "italic",
-              fontSize: "1.25rem", color: bgColor === "#000000" ? "#FFF" : "#171717"
+              position: 'absolute',
+              top: '5px',
+              left: '20px',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '24px',
+              padding: '8px 14px',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '4px',
+              zIndex: 10,
+              border: '1px solid rgba(0,0,0,0.02)'
             }}>
-              Atelier Booth
+              <span style={{ fontSize: '0.5rem', color: '#9CA3AF', fontFamily: 'Inter', fontWeight: 500, letterSpacing: '0.02em' }}>Tap and hold to super react</span>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '1.1rem' }}>
+                <span>🤍</span>
+                <span>🫧</span>
+                <span>🎀</span>
+                <span>💿</span>
+                <span>🌿</span>
+                <span style={{ fontSize: '1.1rem', color: '#9CA3AF', marginLeft: '2px', fontWeight: 300, lineHeight: 1 }}>+</span>
+              </div>
+            </div>
+
+            {/* Main Bubble Container */}
+            <div style={{
+              backgroundColor: bgColor, 
+              borderRadius: '24px',
+              padding: '12px',
+              boxShadow: '0 12px 48px rgba(0,0,0,0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              border: '1px solid rgba(0,0,0,0.03)',
+              transition: "background-color 0.3s",
+            }}>
+              
+              {/* Photo Strip Area */}
+              <div style={{
+                display: 'flex',
+                flexDirection: layout === "2x2-grid" ? "row" : "column",
+                flexWrap: layout === "2x2-grid" ? "wrap" : "nowrap",
+                gap: '8px',
+                width: '100%',
+              }}>
+                {[...Array(expectedPhotos)].map((_, i) => (
+                  <div key={i} style={{ 
+                    backgroundColor: "rgba(0,0,0,0.05)", 
+                    aspectRatio: layout === "2x2-grid" ? "1/1" : "4/3",
+                    width: layout === "2x2-grid" ? "calc(50% - 4px)" : "100%",
+                    borderRadius: "8px",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    backgroundImage: photos[i] ? "url(" + photos[i] + ")" : "none",
+                    overflow: "hidden"
+                  }} />
+                ))}
+              </div>
+
+              {/* iOS Menu Actions */}
+              <div style={{ 
+                marginTop: '12px', 
+                display: 'flex',
+                flexDirection: 'column',
+              }}>
+                <div style={{ textAlign: 'center', fontSize: '0.65rem', color: bgColor === '#000000' ? '#D1D5DB' : '#9CA3AF', marginBottom: '8px', fontFamily: 'Inter', fontWeight: 500 }}>
+                  1:22 AM
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.8rem', fontFamily: 'Inter', color: '#374151', backgroundColor: '#F9FAFB', borderRadius: '16px', border: '1px solid #F3F4F6' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #F3F4F6' }}>
+                    <span>Reply</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #F3F4F6' }}>
+                    <span>Save</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #F3F4F6' }}>
+                    <span>Forward</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', color: '#EF4444' }}>
+                    <span>Unsend</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ textAlign: "center", fontFamily: "Playfair Display", fontStyle: "italic", fontSize: "1rem", color: bgColor === "#000000" ? "#FFF" : "#171717", marginTop: "16px" }}>
+                Wink
+              </div>
             </div>
           </div>
 
