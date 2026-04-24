@@ -34,14 +34,17 @@ export default function Navbar() {
             width: '34px',
             height: '34px',
             borderRadius: '50%',
-            overflow: 'hidden',
+            backgroundColor: 'var(--text-primary)',
+            color: 'var(--surface)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            position: 'relative'
+            fontFamily: 'Playfair Display',
+            fontWeight: 700,
+            fontSize: '1.2rem'
           }}>
-            <Image src="/logo.png" alt="Wink Logo" fill style={{ objectFit: 'cover' }} />
+            W
           </div>
           <Link href="/" style={{ fontFamily: 'Playfair Display', fontSize: '1.35rem', fontWeight: 600, letterSpacing: '-0.02em', paddingRight: '1rem', whiteSpace: 'nowrap' }}>
             Wink
