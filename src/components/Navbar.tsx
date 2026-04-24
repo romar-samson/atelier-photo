@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 
 export default function Navbar() {
@@ -32,22 +33,18 @@ export default function Navbar() {
           <div style={{
             width: '34px',
             height: '34px',
-            backgroundColor: 'var(--text-primary)',
             borderRadius: '50%',
+            overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--surface)',
-            fontWeight: '600',
-            fontFamily: 'Playfair Display',
-            fontSize: '1.2rem',
-            lineHeight: 1,
-            flexShrink: 0
+            flexShrink: 0,
+            position: 'relative'
           }}>
-            A
+            <Image src="/logo.png" alt="Wink Logo" fill style={{ objectFit: 'cover' }} />
           </div>
           <Link href="/" style={{ fontFamily: 'Playfair Display', fontSize: '1.35rem', fontWeight: 600, letterSpacing: '-0.02em', paddingRight: '1rem', whiteSpace: 'nowrap' }}>
-            Atelier.
+            Wink
           </Link>
         </div>
 
@@ -69,9 +66,6 @@ export default function Navbar() {
 
         {/* Right side: Actions */}
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button className="nav-link desktop-only" style={{ fontSize: '0.875rem', fontWeight: 500, paddingRight: '0.5rem' }}>
-            Sign In
-          </button>
           <Link href="/studio" className="btn-enter" style={{ 
             backgroundColor: 'var(--text-primary)', 
             color: 'var(--surface)',
